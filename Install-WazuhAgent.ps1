@@ -1,17 +1,17 @@
-#Requires -RunAsAdministrator
+﻿#Requires -RunAsAdministrator
 <#
 .SYNOPSIS
     Idempotentna instalacja agenta Wazuh na systemie Windows.
 .DESCRIPTION
-    Skrypt można uruchomić wielokrotnie — każdy krok jest wykonywany tylko
+    Skrypt mozna uruchomic wielokrotnie - kazdy krok jest wykonywany tylko
     wtedy, gdy jest to konieczne (desired-state):
-      - pobieranie MSI     → pomijane jeśli plik już istnieje
-      - instalacja agenta  → pomijana jeśli właściwa wersja jest już zainstalowana
-      - konfiguracja IP    → nadpisywana jeśli manager w ossec.conf jest inny
-      - start usługi       → pomijany jeśli usługa już działa
-      - usunięcie MSI      → wykonywane tylko jeśli plik istnieje
+      - pobieranie MSI     -> pomijane jesli plik juz istnieje
+      - instalacja agenta  -> pomijana jesli wlasciwa wersja jest juz zainstalowana
+      - konfiguracja IP    -> nadpisywana jesli manager w ossec.conf jest inny
+      - start uslugi       -> pomijany jesli usluga juz dziala
+      - usuniecie MSI      -> wykonywane tylko jesli plik istnieje
 .NOTES
-    Wymaga uprawnień administratora.
+    Wymaga uprawnien administratora.
     Wersja agenta : 4.14.5-1
     Dokumentacja  : https://documentation.wazuh.com/current/installation-guide/wazuh-agent/wazuh-agent-package-windows.html
 #>
@@ -73,7 +73,7 @@ function Get-CurrentManager {
 }
 
 # ============================================================
-# KROK 1 — Sprawdzenie uprawnien administratora
+# KROK 1 - Sprawdzenie uprawnien administratora
 # ============================================================
 Write-Step "Sprawdzanie uprawnien administratora..."
 $principal = [Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()
@@ -84,11 +84,11 @@ if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administra
 Write-Done "Uprawnienia administratora potwierdzone."
 
 # ============================================================
-# KROK 2 — Pobranie instalatora MSI (tylko jesli brak pliku)
+# KROK 2 - Pobranie instalatora MSI (tylko jesli brak pliku)
 # ============================================================
 Write-Step "Sprawdzanie pliku instalatora..."
 if (Test-Path $INSTALLER_PATH) {
-    Write-Skip "Plik juz istnieje: $INSTALLER_PATH — pomijam pobieranie."
+    Write-Skip "Plik juz istnieje: $INSTALLER_PATH - pomijam pobieranie."
 } else {
     Write-Host "    Pobieranie z: $DOWNLOAD_URL"
     [Net.ServicePointManager]::SecurityProtocol = [Net.SecurityProtocolType]::Tls12
@@ -97,16 +97,16 @@ if (Test-Path $INSTALLER_PATH) {
 }
 
 # ============================================================
-# KROK 3 — Instalacja agenta (tylko jesli nie ma wlasciwej wersji)
+# KROK 3 - Instalacja agenta (tylko jesli nie ma wlasciwej wersji)
 # ============================================================
 Write-Step "Sprawdzanie zainstalowanej wersji agenta..."
 $installedVersion = Get-InstalledWazuhVersion
 
 if ($installedVersion -eq $AGENT_VERSION) {
-    Write-Skip "Wazuh Agent $AGENT_VERSION jest juz zainstalowany — pomijam instalacje."
+    Write-Skip "Wazuh Agent $AGENT_VERSION jest juz zainstalowany - pomijam instalacje."
 } else {
     if ($installedVersion) {
-        Write-Host "    Wykryto starsza wersje: $installedVersion — zostanie zastapiona."
+        Write-Host "    Wykryto starsza wersje: $installedVersion - zostanie zastapiona."
     }
     Write-Host "    Instalowanie Wazuh Agent $AGENT_VERSION (manager: $WAZUH_MANAGER)..."
     $msiArgs = @("/i", $INSTALLER_PATH, "/q", "WAZUH_MANAGER=$WAZUH_MANAGER")
@@ -119,13 +119,13 @@ if ($installedVersion -eq $AGENT_VERSION) {
 }
 
 # ============================================================
-# KROK 4 — Weryfikacja i ewentualna korekta adresu managera
+# KROK 4 - Weryfikacja i ewentualna korekta adresu managera
 # ============================================================
 Write-Step "Weryfikacja adresu serwera Wazuh w ossec.conf..."
 $currentManager = Get-CurrentManager
 
 if ($currentManager -eq $WAZUH_MANAGER) {
-    Write-Skip "Manager juz ustawiony na: $WAZUH_MANAGER — brak zmian w ossec.conf."
+    Write-Skip "Manager juz ustawiony na: $WAZUH_MANAGER - brak zmian w ossec.conf."
 } else {
     Write-Host "    Aktualny manager: '$currentManager' -> zmiana na: '$WAZUH_MANAGER'"
     $svc = Get-Service -Name $SERVICE_NAME -ErrorAction SilentlyContinue
@@ -134,13 +134,13 @@ if ($currentManager -eq $WAZUH_MANAGER) {
         Write-Host "    Usluga zatrzymana na czas edycji konfiguracji."
     }
     $content = Get-Content $OSSEC_CONF -Raw
-    $content = $content -replace '(<address>)[^<]*(</address>)', "`${1}$WAZUH_MANAGER`${2}"
+    $content = $content -replace '(<address>)[^<]*(</address>)', ('${1}' + $WAZUH_MANAGER + '${2}')
     Set-Content $OSSEC_CONF -Value $content -Encoding UTF8
     Write-Done "Adres managera zaktualizowany w ossec.conf."
 }
 
 # ============================================================
-# KROK 5 — Uruchomienie uslugi (tylko jesli nie dziala)
+# KROK 5 - Uruchomienie uslugi (tylko jesli nie dziala)
 # ============================================================
 Write-Step "Sprawdzanie stanu uslugi $SERVICE_NAME..."
 $svc = Get-Service -Name $SERVICE_NAME -ErrorAction SilentlyContinue
@@ -151,7 +151,7 @@ if (-not $svc) {
 }
 
 if ($svc.Status -eq 'Running') {
-    Write-Skip "Usluga $SERVICE_NAME juz dziala — pomijam uruchomienie."
+    Write-Skip "Usluga $SERVICE_NAME juz dziala - pomijam uruchomienie."
 } else {
     Start-Service -Name $SERVICE_NAME
     Start-Sleep -Seconds 3
@@ -164,21 +164,22 @@ if ($svc.Status -eq 'Running') {
 }
 
 # ============================================================
-# KROK 6 — Usuniecie pliku instalatora (tylko jesli istnieje)
+# KROK 6 - Usuniecie pliku instalatora (tylko jesli istnieje)
 # ============================================================
 Write-Step "Sprzatanie pliku instalatora..."
 if (Test-Path $INSTALLER_PATH) {
     Remove-Item -Path $INSTALLER_PATH -Force
     Write-Done "Plik instalatora usuniety."
 } else {
-    Write-Skip "Plik instalatora nie istnieje — brak czego usuwac."
+    Write-Skip "Plik instalatora nie istnieje - brak czego usuwac."
 }
 
 # ============================================================
 # Podsumowanie
 # ============================================================
 $finalSvc = Get-Service -Name $SERVICE_NAME
-Write-Host "`n=======================================" -ForegroundColor Green
+Write-Host ""
+Write-Host "=======================================" -ForegroundColor Green
 Write-Host "  Wazuh Agent zainstalowany i dziala!" -ForegroundColor Green
 Write-Host "  Wersja       : $AGENT_VERSION"
 Write-Host "  Serwer Wazuh : $WAZUH_MANAGER"
